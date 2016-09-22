@@ -1,0 +1,57 @@
+---
+specversion: 0.0.2
+id: redis-atomicapp
+
+metadata:
+  name: Redis App
+  appversion: 0.0.1
+  description: Redis Atomic App
+  location: docker.io/projectatomic/redis-centos7-atomicapp
+
+params:
+    - name: provider
+      description: The specified default provider.
+      default: kubernetes
+
+graph:
+  - name: redismaster-app
+    params:
+      - name: image
+        description: The redis master part
+        default: centos/redis
+      - name: hostport
+        description: The host TCP port as the external endpoint
+        default: 6379
+    artifacts:
+      kubernetes:
+        - file://artifacts/kubernetes/redis-master-controller.json
+        - file://artifacts/kubernetes/redis-master-service.json
+      openshift:
+        - inherit:
+          - kubernetes
+      docker:
+        - file://artifacts/docker/redis-master_run
+  - name: redisslave-app
+    params:
+      - name: image
+        description: The redis slave part
+        default: centos/redis
+      - name: master_hostport
+        description: The host TCP port of the redis master
+        default: 6379
+      - name: hostport
+        description: The host TCP port as the external endpoint
+        default: 6379
+      - name: instances
+        descriptoin: Number of slave instances
+        default: 1
+    artifacts:
+      kubernetes:
+        - file://artifacts/kubernetes/redis-slave-controller.json
+        - file://artifacts/kubernetes/redis-slave-service.json
+      openshift:
+        - inherit:
+          - kubernetes
+      docker:
+        - file://artifacts/docker/redis-slave_run
+

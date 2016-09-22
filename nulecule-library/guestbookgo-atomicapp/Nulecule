@@ -1,0 +1,30 @@
+---
+specversion: 0.0.2
+id: guestbookgo-atomicapp
+
+metadata:
+  name: Guestbook-Go Atomic App
+  appversion: 0.0.1
+  description: Atomic app for deploying the k8s guestbook-go app
+  location: docker.io/projectatomic/guestbookgo-atomicapp
+
+params:
+    - name: provider
+      description: The specified default provider.
+      default: kubernetes
+
+graph:
+  - name: guestbookfront-app
+    params:
+      - name: image
+        description: The frontend part
+        default: kubernetes/guestbook:v2
+    artifacts:
+      kubernetes:
+        - file://artifacts/kubernetes/guestbook-controller.json
+        - file://artifacts/kubernetes/guestbook-service.json
+      openshift:
+        - inherit:
+          - kubernetes
+  - name: redis-centos7-atomicapp
+    source: docker://projectatomic/redis-centos7-atomicapp

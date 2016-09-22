@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+  labels:
+    name: wordpress-frontend
+spec:
+  ports:
+    - port: 80
+  selector:
+    name: wordpress-frontend
