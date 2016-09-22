@@ -15,7 +15,18 @@ import (
 func getAnswers(nulecule_path string) map[string]nulecule.Answers {
 	fmt.Println("path: " + nulecule_path)
 	base := nulecule.New("nulecule-library/"+nulecule_path, "", false)
-	fmt.Println(base)
+	err := base.ReadMainFile()
+	if err != nil {
+		fmt.Println("error reading nulecule", err)
+	}
+
+	err = base.LoadAnswers()
+	if err != nil {
+		fmt.Println("error loading answerse", err)
+	}
+
+	j, _ := json.Marshal(base)
+	fmt.Println("nulecule: ", string(j))
 	return base.AnswersData
 }
 
