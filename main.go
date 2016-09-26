@@ -6,11 +6,36 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/cdrage/atomicapp-go/nulecule"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
+
+const MAIN_FILE = "Nulecule"
+
+type Answers map[string]map[string]string
+
+/*
+func loadFromPath(src string) {
+	nuleculePath := filepath.Join(src, MAIN_FILE)
+
+	// []byte
+	nuleculeData, err := ioutil.ReadFile(nuleculePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = yaml.Unmarshal(nuleculeData, )
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(nuleculeData)
+}
+*/
 
 func getAnswers(nulecule_path string) map[string]nulecule.Answers {
 	fmt.Println("path: " + nulecule_path)
@@ -20,6 +45,7 @@ func getAnswers(nulecule_path string) map[string]nulecule.Answers {
 		fmt.Println("error reading nulecule", err)
 	}
 
+	base.AnswersDirectory = "nulecule-library/" + nulecule_path
 	err = base.LoadAnswers()
 	if err != nil {
 		fmt.Println("error loading answerse", err)
@@ -28,6 +54,44 @@ func getAnswers(nulecule_path string) map[string]nulecule.Answers {
 	j, _ := json.Marshal(base)
 	fmt.Println("nulecule: ", string(j))
 	return base.AnswersData
+}
+
+// returns a map of maps
+func parseBasicINI(data string) map[string]map[string]string {
+	/*
+		find first [ then find matching ]. Everything between them is the first key. Read until next [ or end of string.
+	*/
+	var answers = make(map[string]map[string]string)
+	values := strings.SplitAfter(data, "\n")
+	var key string
+	for _, str := range values {
+		if strings.HasPrefix(str, "[") {
+			key = strings.Trim(str, "[]\n")
+			answers[key] = make(map[string]string)
+		} else {
+			subvalue := strings.Split(str, " = ")
+			answers[key][subvalue[0]] = strings.Trim(subvalue[1], "\n")
+		}
+	}
+
+	fmt.Println(answers)
+	return answers
+}
+
+func getAnswersFromFile(nulecule_path string) map[string]Answers {
+	os.Remove("answers.conf")
+	output, err := exec.Command("atomicapp", "genanswers", "nulecule-library/"+nulecule_path).CombinedOutput()
+	if err != nil {
+		fmt.Println("Error running atomicapp")
+	}
+	fmt.Println(string(output))
+	answers, err := ioutil.ReadFile("answers.conf")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(answers))
+	// add root node
+	return map[string]Answers{"nulecule": parseBasicINI(string(answers))}
 }
 
 func getNuleculeList() map[string][]string {
@@ -50,7 +114,8 @@ func Nulecules(w http.ResponseWriter, r *http.Request) {
 func NuleculeDetails(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nulecule_id := vars["id"]
-	json.NewEncoder(w).Encode(getAnswers(nulecule_id))
+	//json.NewEncoder(w).Encode(getAnswers(nulecule_id))
+	json.NewEncoder(w).Encode(getAnswersFromFile(nulecule_id))
 }
 
 func main() {
