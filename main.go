@@ -21,6 +21,7 @@ import (
 
 const MAIN_FILE = "Nulecule"
 
+// TODO: create a struct
 type Answers map[string]map[string]string
 
 func runCommand(cmd string, args ...string) []byte {
@@ -93,20 +94,64 @@ func NuleculeDetails(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(getAnswersFromFile(nulecule_id))
 }
 
+func genUUID() string {
+	return strings.Trim(string(runCommand("/usr/bin/uuidgen")), "\n")
+}
+
+func getToken() string {
+	return strings.Trim(string(runCommand("/usr/bin/oc", "whoami", "-t")), "\n")
+}
+
+func addProviderDetails(answers Answers) {
+	uuid := genUUID()
+	token := getToken()
+	provider := make(map[string]string)
+	provider["namespace"] = "cap-" + uuid
+	provider["provider"] = "openshift"
+	provider["provider-api"] = "https://10.1.2.2:8443"
+	provider["provider-auth"] = token
+	provider["provider-cafile"] = "/host/var/lib/openshift/openshift.local.config/master/ca.crt"
+	provider["providertlsverify"] = "False"
+	answers["general"] = provider
+}
+
 func NuleculeUpdate(w http.ResponseWriter, r *http.Request) {
 	// update the nulecule answers file
 	vars := mux.Vars(r)
 	nulecule_id := vars["id"]
-	fmt.Println(nulecule_id) // print it for now, will use for writing file
+	fmt.Println(nulecule_id)
 	fmt.Println("NuleculeUpdate!")
-	res_map := make(map[string]interface{})
-	res_map["foo"] = "bar"
+
+	// get the posted answers
+	// Answers is a map of maps
+	res_map := make(map[string]Answers)
+
+	json.NewDecoder(r.Body).Decode(&res_map)
 
 	// ERIK TODO:
 	// -> Convert answer JSON params -> map[string]interface{}
 	// -> answerMap := addProviderDetails(map[string]interface{}) < adds provider necessary details to [general]
 	// -> iniStruct := genINIFromAnswers(answerMap)
 	// -> iniStruct.write(/* target nulecule directory */
+	addProviderDetails(res_map["nulecule"])
+
+	os.MkdirAll(nulecule_id, 0777)
+
+	f, err := os.Create(nulecule_id + "/answers.conf")
+	if err != nil {
+		fmt.Println("Error creating answers.conf")
+	}
+
+	defer f.Close()
+
+	for k, v := range res_map["nulecule"] {
+		//fmt.Print("[" + k + "]\n")
+		fmt.Fprint(f, "["+k+"]\n")
+		for k1, v1 := range v {
+			//fmt.Printf("%s=%s\n", k1, v1)
+			fmt.Fprintf(f, "%s=%s\n", k1, v1)
+		}
+	}
 
 	json.NewEncoder(w).Encode(res_map) // Success, fail?
 }
