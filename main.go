@@ -37,6 +37,14 @@ func loadFromPath(src string) {
 }
 */
 
+func runCommand(cmd string, args ...string) []byte {
+	output, err := exec.Command(cmd, args...).CombinedOutput()
+	if err != nil {
+		fmt.Println("Error running " + cmd)
+	}
+	return output
+}
+
 func getAnswers(nulecule_path string) map[string]nulecule.Answers {
 	fmt.Println("path: " + nulecule_path)
 	base := nulecule.New("nulecule-library/"+nulecule_path, "", false)
@@ -80,10 +88,13 @@ func parseBasicINI(data string) map[string]map[string]string {
 
 func getAnswersFromFile(nulecule_path string) map[string]Answers {
 	os.Remove("answers.conf")
-	output, err := exec.Command("atomicapp", "genanswers", "nulecule-library/"+nulecule_path).CombinedOutput()
-	if err != nil {
-		fmt.Println("Error running atomicapp")
-	}
+	/*
+		output, err := exec.Command("atomicapp", "genanswers", "nulecule-library/"+nulecule_path).CombinedOutput()
+		if err != nil {
+			fmt.Println("Error running atomicapp")
+		}
+	*/
+	output := runCommand("atomicapp", "genanswers", "nulecule-library/"+nulecule_path)
 	fmt.Println(string(output))
 	answers, err := ioutil.ReadFile("answers.conf")
 	if err != nil {
@@ -107,6 +118,7 @@ func getNuleculeList() map[string][]string {
 
 func Nulecules(w http.ResponseWriter, r *http.Request) {
 	//w.Write([]byte("Gorilla!\n"))
+	fmt.Println("Getting nulecules")
 
 	json.NewEncoder(w).Encode(getNuleculeList())
 }
@@ -114,13 +126,29 @@ func Nulecules(w http.ResponseWriter, r *http.Request) {
 func NuleculeDetails(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nulecule_id := vars["id"]
-	//json.NewEncoder(w).Encode(getAnswers(nulecule_id))
 	json.NewEncoder(w).Encode(getAnswersFromFile(nulecule_id))
+}
+
+func NuleculeUpdate(w http.ResponseWriter, r *http.Request) {
+	// update the nulecule answers file
+	vars := mux.Vars(r)
+	nulecule_id := vars["id"]
+	json.NewEncoder(w).Encode(getAnswersFromFile(nulecule_id))
+}
+
+func NuleculeRun(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	nulecule_id := vars["id"]
+	output := runCommand("atomic", "run", "nulecule-library/"+nulecule_id)
+	fmt.Println(string(output))
+	json.NewEncoder(w).Encode(string(output))
 }
 
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/nulecules", Nulecules)
-	r.HandleFunc("/nulecules/{id}", NuleculeDetails)
+	r.HandleFunc("/nulecules/{id}", NuleculeDetails).Methods("GET")
+	r.HandleFunc("/nulecules/{id}", NuleculeUpdate).Methods("POST")
+	r.HandleFunc("/nulecules/{id}/deploy", NuleculeRun).Methods("POST")
 	log.Fatal(http.ListenAndServe(":3001", handlers.CORS()(r)))
 }
