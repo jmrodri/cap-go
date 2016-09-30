@@ -10,7 +10,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/cdrage/atomicapp-go/nulecule"
+	//"github.com/codeskyblue/go-sh"
+
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
@@ -19,49 +20,12 @@ const MAIN_FILE = "Nulecule"
 
 type Answers map[string]map[string]string
 
-/*
-func loadFromPath(src string) {
-	nuleculePath := filepath.Join(src, MAIN_FILE)
-
-	// []byte
-	nuleculeData, err := ioutil.ReadFile(nuleculePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = yaml.Unmarshal(nuleculeData, )
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(nuleculeData)
-}
-*/
-
 func runCommand(cmd string, args ...string) []byte {
 	output, err := exec.Command(cmd, args...).CombinedOutput()
 	if err != nil {
 		fmt.Println("Error running " + cmd)
 	}
 	return output
-}
-
-func getAnswers(nulecule_path string) map[string]nulecule.Answers {
-	fmt.Println("path: " + nulecule_path)
-	base := nulecule.New("nulecule-library/"+nulecule_path, "", false)
-	err := base.ReadMainFile()
-	if err != nil {
-		fmt.Println("error reading nulecule", err)
-	}
-
-	base.AnswersDirectory = "nulecule-library/" + nulecule_path
-	err = base.LoadAnswers()
-	if err != nil {
-		fmt.Println("error loading answerse", err)
-	}
-
-	j, _ := json.Marshal(base)
-	fmt.Println("nulecule: ", string(j))
-	return base.AnswersData
 }
 
 // returns a map of maps
@@ -117,9 +81,6 @@ func getNuleculeList() map[string][]string {
 }
 
 func Nulecules(w http.ResponseWriter, r *http.Request) {
-	//w.Write([]byte("Gorilla!\n"))
-	fmt.Println("Getting nulecules")
-
 	json.NewEncoder(w).Encode(getNuleculeList())
 }
 
@@ -133,15 +94,57 @@ func NuleculeUpdate(w http.ResponseWriter, r *http.Request) {
 	// update the nulecule answers file
 	vars := mux.Vars(r)
 	nulecule_id := vars["id"]
-	json.NewEncoder(w).Encode(getAnswersFromFile(nulecule_id))
+	fmt.Println(nulecule_id) // print it for now, will use for writing file
+	fmt.Println("NuleculeUpdate!")
+	res_map := make(map[string]interface{})
+	res_map["foo"] = "bar"
+
+	// ERIK TODO:
+	// -> Convert answer JSON params -> map[string]interface{}
+	// -> answerMap := addProviderDetails(map[string]interface{}) < adds provider necessary details to [general]
+	// -> iniStruct := genINIFromAnswers(answerMap)
+	// -> iniStruct.write(/* target nulecule directory */
+
+	json.NewEncoder(w).Encode(res_map) // Success, fail?
 }
 
-func NuleculeRun(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	nulecule_id := vars["id"]
-	output := runCommand("atomic", "run", "nulecule-library/"+nulecule_id)
-	fmt.Println(string(output))
-	json.NewEncoder(w).Encode(string(output))
+func NuleculeDeploy(w http.ResponseWriter, r *http.Request) {
+	/*
+		// ZEUS TODO: call runCommand
+		vars := mux.Vars(r)
+		nulecule_id := vars["id"]
+		output := runCommand("atomic", "run", "nulecule-library/"+nulecule_id)
+		fmt.Println(string(output))
+		json.NewEncoder(w).Encode(string(output))
+	*/
+
+	// ERIK TODO:
+	// Very hardcoded currently.
+	DEPLOY_SCRIPT := "/vagrant/examples/etherpad-centos7-atomicapp/run_etherpad.sh"
+
+	// NOTE: MUST USE SCRIPT TO FAKE INTERACTIVE SHELL
+	// script -c "$RUN_SCRIPT" /dev/null # Dump output file to dev null, we'll still have stdout for go
+	cmd := exec.Command("script", "-c",
+		fmt.Sprintf("\"%s\"", DEPLOY_SCRIPT),
+		"/dev/null",
+	)
+
+	output, err := cmd.CombinedOutput()
+
+	res_map := make(map[string]interface{})
+
+	// NOTE: I think the error code might always be successful? Need to look at how the runscript
+	// handles its exit codes.
+	if err != nil {
+		fmt.Println("ERROR!")
+		fmt.Println(fmt.Sprint(err) + ": " + string(output))
+		res_map["result"] = "failed"
+	} else {
+		fmt.Println(string(output))
+		res_map["result"] = "successful"
+	}
+
+	json.NewEncoder(w).Encode(res_map)
 }
 
 func main() {
@@ -149,6 +152,12 @@ func main() {
 	r.HandleFunc("/nulecules", Nulecules)
 	r.HandleFunc("/nulecules/{id}", NuleculeDetails).Methods("GET")
 	r.HandleFunc("/nulecules/{id}", NuleculeUpdate).Methods("POST")
-	r.HandleFunc("/nulecules/{id}/deploy", NuleculeRun).Methods("POST")
-	log.Fatal(http.ListenAndServe(":3001", handlers.CORS()(r)))
+	r.HandleFunc("/nulecules/{id}/deploy", NuleculeDeploy).Methods("POST")
+	fmt.Println("Listening on localhost:3001")
+
+	allowed_headers := handlers.AllowedHeaders([]string{"Content-Type"})
+
+	log.Fatal(http.ListenAndServe(":3001", handlers.CORS(
+		allowed_headers,
+	)(r)))
 }
