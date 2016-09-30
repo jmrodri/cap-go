@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
+	"path"
+	"runtime"
 	"strings"
 
 	//"github.com/codeskyblue/go-sh"
@@ -109,42 +112,64 @@ func NuleculeUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func NuleculeDeploy(w http.ResponseWriter, r *http.Request) {
-	/*
-		// ZEUS TODO: call runCommand
-		vars := mux.Vars(r)
-		nulecule_id := vars["id"]
-		output := runCommand("atomic", "run", "nulecule-library/"+nulecule_id)
-		fmt.Println(string(output))
-		json.NewEncoder(w).Encode(string(output))
-	*/
+	vars := mux.Vars(r)
+	nulecule_id := vars["id"]
 
-	// ERIK TODO:
-	// Very hardcoded currently.
-	DEPLOY_SCRIPT := "/vagrant/examples/etherpad-centos7-atomicapp/run_etherpad.sh"
-
-	// NOTE: MUST USE SCRIPT TO FAKE INTERACTIVE SHELL
-	// script -c "$RUN_SCRIPT" /dev/null # Dump output file to dev null, we'll still have stdout for go
-	cmd := exec.Command("script", "-c",
-		fmt.Sprintf("\"%s\"", DEPLOY_SCRIPT),
-		"/dev/null",
-	)
-
-	output, err := cmd.CombinedOutput()
-
-	res_map := make(map[string]interface{})
-
-	// NOTE: I think the error code might always be successful? Need to look at how the runscript
-	// handles its exit codes.
+	usr, err := user.Current()
 	if err != nil {
-		fmt.Println("ERROR!")
-		fmt.Println(fmt.Sprint(err) + ": " + string(output))
-		res_map["result"] = "failed"
-	} else {
-		fmt.Println(string(output))
-		res_map["result"] = "successful"
+		log.Fatal(err)
 	}
+	home_dir := usr.HomeDir
 
-	json.NewEncoder(w).Encode(res_map)
+	// Create nulecules dir if it doens't already exist
+	nulecules_dir := path.Join(home_dir, "nulecules")
+	mode := os.FileMode(int(0755))
+	os.Mkdir(nulecules_dir, mode)
+
+	nulecule_dir := path.Join(nulecules_dir, nulecule_id)
+
+	// Download atomicapp
+	download_script := path.Join(mainGoDir(), "download_atomicapp.sh")
+	output := runCommand("bash", download_script, nulecule_id)
+	fmt.Println(string(output))
+
+	// Fix the fact that the entire thing is owned by root -.- WHY
+	output = runCommand(
+		"sudo", "chown", "-R", "vagrant:vagrant", nulecule_dir)
+	fmt.Println(string(output))
+
+	// Copy in generated answers.conf from $HOME/answers working directory
+	answers_conf_src := path.Join(home_dir, "answers", nulecule_id, "answers.conf")
+	output = runCommand("cp", answers_conf_src, nulecule_dir)
+	fmt.Println(string(output))
+
+	// Run the atomicapp!
+	run_script := path.Join(mainGoDir(), "run_atomicapp.sh")
+	output = runCommand("bash", run_script, nulecule_id)
+	fmt.Println(string(output))
+
+	// TODO: EXPOSE ROUTE!
+	// Need to figure out a way to tie the "svc" that was just
+	// created with the atomicapp that was deployed so we can
+	// expose the route correctly.
+	//
+	// `oc get svc`
+	// `oc expose service etherpad-svc -l name=etherpad`
+
+	// TODO: Error handling!
+	res_map := make(map[string]interface{})
+	res_map["result"] = "success"
+
+	json.NewEncoder(w).Encode(res_map) // Success, fail?
+}
+
+func wrapScriptCmd(cmd string) string {
+	return fmt.Sprintf("\"%s\"", cmd)
+}
+
+func mainGoDir() string {
+	_, filename, _, _ := runtime.Caller(0)
+	return fmt.Sprintf(path.Dir(filename))
 }
 
 func main() {
