@@ -101,11 +101,18 @@ func getToken() string {
 	return strings.Trim(string(runCommand("/usr/bin/oc", "whoami", "-t")), "\n")
 }
 
+func createNewProject(project string) string {
+	return strings.Trim(string(runCommand("/usr/bin/oc", "new-project", project)), "\n")
+}
+
 func addProviderDetails(answers Answers) {
 	uuid := genUUID()
 	token := getToken()
+	project_name := "cap-" + uuid
+	output := createNewProject(project_name)
+	fmt.Println(output)
 	provider := make(map[string]string)
-	provider["namespace"] = "cap-" + uuid
+	provider["namespace"] = project_name
 	provider["provider"] = "openshift"
 	provider["provider-api"] = "https://10.1.2.2:8443"
 	provider["provider-auth"] = token
