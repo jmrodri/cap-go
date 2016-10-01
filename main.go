@@ -170,7 +170,7 @@ func NuleculeDeploy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nulecule_id := vars["id"]
 
-	home_dir := getHomeDir
+	home_dir := getHomeDir()
 
 	// Create nulecules dir if it doens't already exist
 	nulecules_dir := path.Join(home_dir, "nulecules")
