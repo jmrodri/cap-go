@@ -135,9 +135,11 @@ func NuleculeUpdate(w http.ResponseWriter, r *http.Request) {
 	// -> iniStruct.write(/* target nulecule directory */
 	addProviderDetails(res_map["nulecule"])
 
-	os.MkdirAll(nulecule_id, 0777)
+	home_dir := getHomeDir()
+	answers_dir := path.Join(home_dir, "answers", nulecule_id)
+	os.MkdirAll(answers_dir, 0755)
 
-	f, err := os.Create(nulecule_id + "/answers.conf")
+	f, err := os.Create(path.Join(answers_dir, "answers.conf"))
 	if err != nil {
 		fmt.Println("Error creating answers.conf")
 	}
@@ -156,15 +158,19 @@ func NuleculeUpdate(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res_map) // Success, fail?
 }
 
-func NuleculeDeploy(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	nulecule_id := vars["id"]
-
+func getHomeDir() string {
 	usr, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
 	}
-	home_dir := usr.HomeDir
+	return usr.HomeDir
+}
+
+func NuleculeDeploy(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	nulecule_id := vars["id"]
+
+	home_dir := getHomeDir
 
 	// Create nulecules dir if it doens't already exist
 	nulecules_dir := path.Join(home_dir, "nulecules")
