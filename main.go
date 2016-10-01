@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"os/user"
 	"path"
-	"runtime"
 	"strings"
 
 	//"github.com/codeskyblue/go-sh"
@@ -219,8 +218,11 @@ func wrapScriptCmd(cmd string) string {
 }
 
 func mainGoDir() string {
-	_, filename, _, _ := runtime.Caller(0)
-	return fmt.Sprintf(path.Dir(filename))
+	/*
+		_, filename, _, _ := runtime.Caller(0)
+		return fmt.Sprintf(path.Dir(filename))
+	*/
+	return "."
 }
 
 func main() {
